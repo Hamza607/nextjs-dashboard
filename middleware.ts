@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { jwtVerify } from "jose";
 
-export function middleware(
+const JWT_SECRET = process.env.JWT_SECRET;
+
+const secret = JWT_SECRET
+  ? new TextEncoder().encode(JWT_SECRET)
+  : null;
+
+export async function middleware(
   request: NextRequest
 ) {
   const token =
@@ -12,13 +19,30 @@ export function middleware(
       "/dashboard"
     );
 
-  if (isDashboardRoute && !token) {
+  if (!isDashboardRoute) {
+    return NextResponse.next();
+  }
+
+  if (!token || !secret) {
     return NextResponse.redirect(
       new URL("/login", request.url)
     );
   }
 
-  return NextResponse.next();
+  try {
+    await jwtVerify(token, secret);
+
+    return NextResponse.next();
+  } catch {
+    const response =
+      NextResponse.redirect(
+        new URL("/login", request.url)
+      );
+
+    response.cookies.delete("auth-token");
+
+    return response;
+  }
 }
 
 export const config = {
